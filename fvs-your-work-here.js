@@ -34,7 +34,7 @@ const getSha1 = require('./util').getSha1;
 
 /**
   let's write some helper functions!
-**/
+ **/
 function createFVSObject (fileContents) {
   // a. Hash the contents of the file
   // b. Use the first two characters of the hash as the directory in .fvs/objects
@@ -43,10 +43,21 @@ function createFVSObject (fileContents) {
   //      Another hint: look up fs.statSync
   // d. Write a file whose name is the rest of the hash, and whose contents is the contents of the file
   // e. Return the hash!
+  let hash = getSha1(fileContents)
+  let dirName = './.fvs/objects/' + hash.slice(0, 2)
+  try {
+    fs.readdirSync(dirName)
+  } catch (err) {
+    fs.mkdirSync(dirName)
+  }
+  fs.writeFileSync(dirName + '/' + hash.slice(2), fileContents)
+  return hash
 }
 
 function createBlobObject (fileName) {
   // this will use our createFVSObject function above!
+  let fileContent = fs.readFileSync(fileName)
+  return createFVSObject(fileContent)
 }
 
 // NOTE: the index passed in here is a string representing the result of reading the index file
@@ -57,6 +68,19 @@ function updateIndex (index, fileName, blobRef) {
   // b. check if the file already has an index entry, and remove it if it does!
   // c. add the new line to the index
   // d. return the new index (in string form)!
+  let newIndex = []
+  index.forEach((history) => {
+    if (history !== '') newIndex.push(history)
+  })
+  let newIndexStr
+  let fileContent = fs.readFileSync(fileName)
+  let oldBlobRef = getSha1(fileContent)
+  let indexOfFile = newIndex.indexOf(fileName + ' ' + oldBlobRef)
+  if (indexOfFile > -1) newIndex.splice(indexOfFile, 1)
+  newIndex.push(fileName + ' ' + blobRef)
+  newIndexStr = newIndex.join('\n')
+  fs.writeFileSync('./.fvs/index', newIndexStr)
+  return newIndexStr
 }
 
 module.exports.init = function () {
@@ -69,6 +93,13 @@ module.exports.init = function () {
       refs/master
       HEAD
   */
+  let dirContent = fs.readdirSync('./', 'utf8')
+  if (dirContent.indexOf('.fvs') !== -1) throw new Error('.fvs already exists')
+  fs.mkdirSync('./.fvs')
+  fs.mkdirSync('./.fvs/objects')
+  fs.mkdirSync('./.fvs/refs')
+  fs.mkdirSync('./.fvs/refs/master')
+  fs.mkdirSync('./.fvs/HEAD')
 };
 
 module.exports.add = function () {
@@ -90,6 +121,19 @@ module.exports.add = function () {
   */
 
   // return the value of the added blob's hash!
+  let fileName = process.argv[3]
+  let file
+  let index
+  if (process.argv.length === 3) throw new Error('No filename specified')
+  try {
+    index = fs.readFileSync('./.fvs/index')
+  } catch (err) {
+    fs.writeFileSync('./.fvs/index', '', 'utf8')
+    index = fs.readFileSync('./.fvs/index', 'utf8').split('\n')
+  }
+  let blobRef = createBlobObject(fileName)
+  let newIndex = updateIndex(index, fileName, blobRef)
+  return blobRef
 };
 
 module.exports.commit = function () {
@@ -101,32 +145,41 @@ module.exports.commit = function () {
     For now, I've done this for you! It's not easy!
     If you get done early, try implementing this on your own!
   */
-  let index = fs.readFileSync('./.fvs/index', 'utf8');
-  let treeRoot = require('./helpers')(index);
+  let index = fs.readFileSync('./.fvs/index', 'utf8')
+  let treeRoot = require('./helpers')(index)
 
   // step 2. create a commit object
   // if it's not the first commit, remember to
   // get current branch from HEAD, and get the parent tree from refs
   /*
     A commit object should look like this:
-
     tree 2ba0f3bff73bd3f3ds212ba0f3bff73bd3f3ds21
     author { your name - go ahead and hard code it ;) }
     { your commit message! }
-
     If there is a parent, it should look like this:
-
     tree 2ba0f3bff73bd3f3ds212ba0f3bff73bd3f3ds21
     author { your name - go ahead and hard code it ;) }
     { your commit message! }
     parent f83b3bff73bd3f3ds212ba0f3bff73bd3f3ds21
-
     It should still be saved in the objects folder the same way tree and blob objects are saved!
   */
 
   // step 3. point the current branch at the new commit object
 
   // return the value of the commit's hash!
+  if (process.argv.length < 4) throw new Error('No commit message')
+  let treeStr = '' + 'tree ' + treeRoot
+  let authorStr = 'author Jason Hang'
+  let commitMessage = process.argv[3]
+  let currBranch = fs.readFileSync('./.fvs/HEAD', 'utf8')
+  let HEADPath = currBranch.split(' ')[1]
+  let parentBlob = fs.readFileSync('./.fvs/' + HEADPath, 'utf8')
+  let commitContent = [treeStr, authorStr, commitMessage]
+  let commitBlob
+  if (parentBlob !== 'undefined') commitContent.push('parent ' + parentBlob)
+  commitBlob = createFVSObject(commitContent.join('\n'))
+  fs.writeFileSync('./.fvs/' + HEADPath, commitBlob)
+  return commitBlob
 };
 
 

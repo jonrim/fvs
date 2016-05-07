@@ -1,7 +1,7 @@
 'use strict';
 
 // Make sure to fill this in!!!!
-const YOUR_NAME = 'FILL IN YOUR NAME HERE!!!!!';
+const YOUR_NAME = 'Jason Hang';
 
 const expect = require('chai').expect;
 const cp = require('child_process');
@@ -11,7 +11,7 @@ const rmdir = require('rimraf').sync;
 const fvs = require('../fvs-your-work-here');
 const getSha1 = require('../util').getSha1;
 
-xdescribe('FVS', function () {
+describe('FVS', function () {
 
   beforeEach(function () { rmdir('./.fvs'); });
   afterEach(function () { rmdir('./.fvs'); });
